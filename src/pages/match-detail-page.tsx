@@ -28,6 +28,10 @@ import {
   type Pelada,
   type Participant,
 } from "@/lib/peladas";
+import {
+  notifyAdminPlayerJoined,
+  notifyAdminPlayerDeclined,
+} from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
 import { cx } from "@/utils/cx";
 
@@ -187,6 +191,12 @@ function MatchDetailPage() {
       if (currentUser) {
         setUserStatus(currentUser.status);
       }
+      notifyAdminPlayerJoined(
+        pelada?.admin_id ?? "",
+        profile.name ?? "Jogador",
+        pelada?.name ?? "",
+        currentPeladaId,
+      );
     }
     setIsSubmitting(false);
   };
@@ -223,6 +233,12 @@ function MatchDetailPage() {
       setUserStatus(null);
     }
     setIsSubmitting(false);
+    notifyAdminPlayerDeclined(
+      pelada?.admin_id ?? "",
+      profile.name ?? "Jogador",
+      pelada?.name ?? "",
+      currentPeladaId,
+    );
   };
 
   const confirmedCount = participants.filter(
@@ -401,8 +417,8 @@ function MatchDetailPage() {
             className={cx(
               "flex h-14 items-center justify-center gap-2 rounded-xl font-display text-lg font-semibold shadow-lg shadow-brand-solid/20 transition-transform active:scale-95",
               userStatus === "confirmed"
-                ? "bg-brand/50 text-white/70 cursor-not-allowed"
-                : "bg-brand-solid text-primary_on-brand hover:bg-brand-solid/90",
+                ? "bg-brand-primary text-brand-secondary cursor-not-allowed opacity-50"
+                : "bg-brand-solid text-primary_on-brand hover:bg-brand-solid_hover",
             )}
           >
             <CheckCircle className="size-5" style={{ fill: "currentColor" }} />
@@ -415,7 +431,7 @@ function MatchDetailPage() {
             className={cx(
               "flex h-14 items-center justify-center gap-2 rounded-xl font-display text-lg font-semibold transition-transform active:scale-95",
               userStatus === "declined"
-                ? "bg-error-secondary/50 text-white/70 cursor-not-allowed"
+                ? "bg-error-secondary text-error-primary cursor-not-allowed opacity-50"
                 : "bg-quaternary text-primary hover:bg-quaternary/80",
             )}
           >

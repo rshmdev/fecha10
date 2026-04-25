@@ -29,6 +29,11 @@ import {
   type FinanceSummary,
 } from "@/lib/peladas";
 import { cx } from "@/utils/cx";
+import {
+  notifyPaymentConfirmed,
+  notifyPaymentReverted,
+  notifyPlayerRemoved,
+} from "@/lib/notifications";
 
 function FinancePage() {
   const navigate = useNavigate();
@@ -97,7 +102,14 @@ function FinancePage() {
         amount,
         currentMonth,
       );
-      if (!error) loadParticipants();
+      if (!error) {
+        loadParticipants();
+        notifyPaymentConfirmed(
+          participant.profile_id,
+          selectedPelada.name,
+          selectedPeladaId,
+        );
+      }
     },
     [selectedPeladaId, selectedPelada, currentMonth, loadParticipants],
   );
@@ -111,18 +123,30 @@ function FinancePage() {
         participant.payment_type,
         currentMonth,
       );
-      if (!error) loadParticipants();
+      if (!error) {
+        loadParticipants();
+        notifyPaymentReverted(
+          participant.profile_id,
+          selectedPelada?.name ?? "",
+          selectedPeladaId,
+        );
+      }
     },
-    [selectedPeladaId, currentMonth, loadParticipants],
+    [selectedPeladaId, currentMonth, loadParticipants, selectedPelada],
   );
 
   const handleRemove = useCallback(
     async (profileId: string) => {
       if (!selectedPeladaId) return;
       const { error } = await removeParticipant(selectedPeladaId, profileId);
-      if (!error) loadParticipants();
+      if (!error) {
+        loadParticipants();
+        if (selectedPelada) {
+          notifyPlayerRemoved(profileId, selectedPelada.name, selectedPeladaId);
+        }
+      }
     },
-    [selectedPeladaId, loadParticipants],
+    [selectedPeladaId, loadParticipants, selectedPelada],
   );
 
   const handleTogglePaymentType = useCallback(

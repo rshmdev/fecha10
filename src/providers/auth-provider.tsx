@@ -39,14 +39,15 @@ interface AuthContextType {
     positions: string[],
   ) => Promise<{ error: string | null }>;
   updateProfile: (
-    updates: Partial<Pick<Profile, "name" | "age" | "positions" | "avatar_url">>,
+    updates: Partial<
+      Pick<Profile, "name" | "age" | "positions" | "avatar_url">
+    >,
   ) => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
- 
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
@@ -205,6 +206,7 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const sendOtp = useCallback(async (phoneNumber: string) => {
     const { error } = await supabase.auth.signInWithOtp({ phone: phoneNumber });
     if (error) {
+      console.log(error);
       console.error("[AUTH] sendOtp error:", error.message);
       return { error: error.message };
     }
@@ -259,7 +261,9 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   const updateProfile = useCallback(
     async (
-      updates: Partial<Pick<Profile, "name" | "age" | "positions" | "avatar_url">>,
+      updates: Partial<
+        Pick<Profile, "name" | "age" | "positions" | "avatar_url">
+      >,
     ) => {
       if (!user) return { error: "Not authenticated" };
 

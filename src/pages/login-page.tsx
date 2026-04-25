@@ -1,9 +1,11 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Phone01, ArrowLeft } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
+import { PinInput } from "@/components/base/input/pin-input";
 import { useAuth } from "@/providers/auth-provider";
+import logoFecha10 from "@/assets/logo-fecha10.png";
 
 function formatPhone(raw: string): string {
   const digits = raw.replace(/\D/g, "");
@@ -24,11 +26,10 @@ function LoginPage() {
   const { sendOtp, verifyOtp } = useAuth();
   const [phone, setPhone] = useState("");
   const [step, setStep] = useState<"phone" | "otp">("phone");
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [otp, setOtp] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -49,6 +50,7 @@ function LoginPage() {
       const { error: otpError } = await sendOtp(e164);
       setIsLoading(false);
       if (otpError) {
+        console.error("Erro ao enviar OTP:", otpError);
         setError(otpError);
         return;
       }
@@ -59,49 +61,23 @@ function LoginPage() {
   );
 
   const handleVerifyOtp = useCallback(async () => {
-    const code = otp.join("");
-    if (code.length < 6) return;
+    if (otp.length < 6) return;
     setError(null);
     setIsLoading(true);
     const e164 = toE164(phone);
-    const { error: verifyError } = await verifyOtp(e164, code);
+    const { error: verifyError } = await verifyOtp(e164, otp);
     setIsLoading(false);
     if (verifyError) {
       setError("Código inválido. Tente novamente.");
-      setOtp(["", "", "", "", "", ""]);
-      otpRefs.current[0]?.focus();
+      setOtp("");
       return;
     }
     navigate("/home", { replace: true });
   }, [otp, phone, verifyOtp, navigate]);
 
-  const handleOtpChange = useCallback(
-    (index: number, value: string) => {
-      if (!/^\d*$/.test(value)) return;
-      const newOtp = [...otp];
-      newOtp[index] = value.slice(-1);
-      setOtp(newOtp);
-      if (value && index < 5) {
-        otpRefs.current[index + 1]?.focus();
-      }
-      if (newOtp.every((d) => d !== "") && newOtp.join("").length === 6) {
-        setTimeout(() => handleVerifyOtp(), 100);
-      }
-    },
-    [otp, handleVerifyOtp],
-  );
-
-  const handleOtpKeyDown = useCallback(
-    (index: number, e: React.KeyboardEvent) => {
-      if (e.key === "Backspace" && !otp[index] && index > 0) {
-        otpRefs.current[index - 1]?.focus();
-        const newOtp = [...otp];
-        newOtp[index - 1] = "";
-        setOtp(newOtp);
-      }
-    },
-    [otp],
-  );
+  const handleOtpComplete = useCallback(() => {
+    setTimeout(() => handleVerifyOtp(), 150);
+  }, [handleVerifyOtp]);
 
   const handleResend = useCallback(async () => {
     if (resendCooldown > 0) return;
@@ -123,9 +99,11 @@ function LoginPage() {
       <main className="bg-pitch-modern relative flex flex-1 items-center justify-center overflow-hidden px-4 py-6">
         <div className="relative z-10 w-full max-w-md">
           <div className="mb-8 text-center">
-            <h1 className="font-login-display mb-2 text-3xl leading-none font-black italic tracking-tight text-primary_on-brand drop-shadow-xl sm:text-[44px]">
-              FECHA10
-            </h1>
+            <img
+              src={logoFecha10}
+              alt="Fecha10"
+              className="mx-auto h-32 w-auto object-contain drop-shadow-xl"
+            />
             <p className="font-login-display text-base leading-snug font-semibold text-primary_on-brand/90 sm:text-[18px]">
               O seu jogo começa aqui.
             </p>
@@ -206,7 +184,7 @@ function LoginPage() {
                     type="button"
                     onClick={() => {
                       setStep("phone");
-                      setOtp(["", "", "", "", "", ""]);
+                      setOtp("");
                       setError(null);
                     }}
                     className="mb-4 flex items-center gap-1 text-sm font-medium text-quaternary transition-colors hover:text-primary"
@@ -228,26 +206,30 @@ function LoginPage() {
                     <label className="mb-2 block text-[12px] font-bold uppercase tracking-[0.05em] text-quaternary">
                       Código de verificação
                     </label>
-                    <div className="flex justify-center gap-2 sm:gap-3">
-                      {otp.map((digit, i) => (
-                        <input
-                          key={i}
-                          ref={(el) => {
-                            otpRefs.current[i] = el;
-                          }}
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={1}
-                          value={digit}
-                          onChange={(e) => handleOtpChange(i, e.target.value)}
-                          onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                          className="size-12 rounded-2xl border border-secondary bg-primary text-center font-display text-lg font-bold text-primary outline-hidden ring-1 ring-primary transition-shadow focus:border-brand focus:ring-2 focus:ring-brand sm:size-14 sm:text-xl"
-                          autoFocus={i === 0}
-                        />
-                      ))}
-                    </div>
+                    <PinInput size="xs" invalid={!!error}>
+                      <PinInput.Label className="sr-only">
+                        Código de verificação
+                      </PinInput.Label>
+                      <PinInput.Group
+                        maxLength={6}
+                        onChange={setOtp}
+                        value={otp}
+                        onComplete={handleOtpComplete}
+                        containerClassName="mx-auto"
+                      >
+                        <PinInput.Slot index={0} />
+                        <PinInput.Slot index={1} />
+                        <PinInput.Slot index={2} />
+                        <PinInput.Separator className="flex items-center self-center" />
+                        <PinInput.Slot index={3} />
+                        <PinInput.Slot index={4} />
+                        <PinInput.Slot index={5} />
+                      </PinInput.Group>
+                    </PinInput>
                     {error && (
-                      <p className="mt-3 text-center text-sm text-error-primary">{error}</p>
+                      <p className="mt-3 text-center text-sm text-error-primary">
+                        {error}
+                      </p>
                     )}
                   </div>
 
@@ -266,7 +248,9 @@ function LoginPage() {
                     {resendCooldown > 0 ? (
                       <p className="text-sm text-quaternary">
                         Reenviar em{" "}
-                        <span className="font-semibold text-primary">{resendCooldown}s</span>
+                        <span className="font-semibold text-primary">
+                          {resendCooldown}s
+                        </span>
                       </p>
                     ) : (
                       <button
@@ -284,10 +268,6 @@ function LoginPage() {
           </section>
         </div>
       </main>
-
-      <footer className="border-t border-secondary bg-primary px-4 py-4 text-center text-sm text-tertiary">
-        © 2026 FECHA10 App. Todos os direitos reservados.
-      </footer>
     </div>
   );
 }

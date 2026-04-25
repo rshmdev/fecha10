@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   TopAppBar,
@@ -19,6 +20,8 @@ import {
   Bell01,
 } from "@untitledui/icons";
 import { cx } from "@/utils/cx";
+import logoFecha10 from "@/assets/logo-fecha10.png";
+import { usePushNotification } from "@/hooks/use-push-notification";
 
 export interface AppLayoutProps {
   children: ReactNode;
@@ -56,7 +59,18 @@ export function AppLayout({
 }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile } = useAuth();
+  const { profile, isAuthenticated } = useAuth();
+  const { requestPermission, registerToken } = usePushNotification();
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    (async () => {
+      const granted = await requestPermission();
+      if (granted) {
+        await registerToken();
+      }
+    })();
+  }, [isAuthenticated, requestPermission, registerToken]);
 
   const navItems: NavItem[] = defaultNavItems.map((item) => ({
     ...item,
@@ -95,18 +109,18 @@ export function AppLayout({
         leading={topAppBarProps?.leading}
         title={
           topAppBarProps?.title ?? (
-            <h1 className="font-display text-xl font-extrabold italic tracking-tight text-brand-secondary">
-              PELADA
-            </h1>
+            <img
+              src={logoFecha10}
+              alt="Fecha10"
+              className="h-14 w-auto object-contain"
+            />
           )
         }
         trailing={topAppBarProps?.trailing ?? defaultTrailing}
         className={topAppBarProps?.className}
       />
 
-      <main className={cx("flex-1 pb-28 pt-16", hideNav && "pb-0")}>
-        {children}
-      </main>
+      <main className={cx("flex-1", hideNav && "pb-0")}>{children}</main>
 
       {!hideNav && <BottomNavBar items={navItems} />}
     </div>

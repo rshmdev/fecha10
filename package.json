@@ -37,6 +37,7 @@
     "@tailwindcss/vite": "^4.2.4",
     "@untitledui/icons": "^0.0.22",
     "@vis.gl/react-google-maps": "^1.8.3",
+    "firebase": "^12.12.1",
     "input-otp": "^1.4.2",
     "react": "^19.2.5",
     "react-aria": "^3.48.0",

@@ -24,6 +24,9 @@ import {
   type Participant,
 } from "@/lib/peladas";
 import { cx } from "@/utils/cx";
+import {
+  notifyAdminPlayerJoined,
+} from "@/lib/notifications";
 
 function JoinPage() {
   const navigate = useNavigate();
@@ -117,6 +120,12 @@ function JoinPage() {
     setParticipants(updatedParticipants);
     setJoinSuccess(true);
     setIsJoining(false);
+    notifyAdminPlayerJoined(
+      pelada.admin_id,
+      profile?.name ?? "Jogador",
+      pelada.name,
+      pelada.id,
+    );
   };
 
   if (isLoading) {
