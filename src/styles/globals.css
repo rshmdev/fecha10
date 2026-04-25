@@ -1,0 +1,210 @@
+@import url("https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+@import "./theme.css";
+
+@plugin "tailwindcss-animate";
+@plugin "tailwindcss-react-aria-components";
+
+@custom-variant dark (&:where(.dark-mode, .dark-mode *));
+@custom-variant label (& [data-label]);
+@custom-variant focus-input-within (&:has(input:focus));
+
+@utility scrollbar-hide {
+    /* For Webkit-based browsers (Chrome, Safari and Opera) */
+    &::-webkit-scrollbar {
+        display: none;
+        -webkit-appearance: none;
+    }
+
+    /* For IE, Edge and Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+}
+
+@utility transition-inherit-all {
+    transition-property: inherit;
+    transition-duration: inherit;
+    transition-timing-function: inherit;
+}
+
+html,
+body {
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-font-variant-ligatures: contextual;
+    font-variant-ligatures: contextual;
+    -webkit-font-kerning: normal;
+    font-kerning: normal;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+}
+
+#root {
+    overflow-x: hidden;
+}
+
+/* Capacitor Safe Area Insets */
+:root {
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-left: env(safe-area-inset-left, 0px);
+    --safe-area-right: env(safe-area-inset-right, 0px);
+}
+
+/* Prevent iOS bounce scroll overscroll */
+body {
+    overscroll-behavior-y: none;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+}
+
+#root {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent text selection on UI elements */
+button,
+[role="button"],
+a,
+nav,
+header,
+footer {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* Allow text selection in content areas */
+p,
+span,
+input,
+textarea,
+[contenteditable="true"] {
+    -webkit-user-select: auto;
+    user-select: auto;
+}
+
+/* iOS PWA status bar area */
+@supports (padding-top: env(safe-area-inset-top)) {
+    .capacitor-status-bar-spacer {
+        height: var(--safe-area-top);
+    }
+}
+
+/* Hide the default expand arrow on Safari.  */
+details summary::-webkit-details-marker {
+    display: none;
+}
+
+/* Hide default arrows from number inputs. */
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+/* Firefox */
+input[type="number"] {
+    -moz-appearance: textfield;
+}
+
+/* Hide the default clear button (X) from search inputs. */
+input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+}
+
+/* Hide the default outline on chart elements. */
+.recharts-surface,
+.recharts-surface g,
+.recharts-surface path {
+    outline: none;
+}
+
+/* Login page styles */
+.bg-pitch-modern {
+    background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.7)), url(https://lh3.googleusercontent.com/aida-public/AB6AXuAhbRrZGhPdXv_OYU0j36B5dq-wGQybSkTLV8diX98Kqtyyd9oKuNUBO2tjzvxN_qDY6BoLJNPOYw_M65rIYSai0hzsBslYzBa4h02WtL4ZQuTDBN97p7vcNKnce-lwquh_2jTpIpToHLlD_z-BOmUrRB7ZRLOlbLqjDuXZ48HelaM5cAwyryZLalZBewuDXIkcxHbGOHtOPnOjv3Aa-lsqVIxJQkBewIJb60KEj4ylDePcmUY1J513p_2iCDMSKsm2_z5X_iTdrLU);
+    background-size: cover;
+    background-position: center;
+}
+
+/* Google Places Autocomplete custom styles */
+.pac-container {
+    font-family: var(--font-body, Inter, sans-serif);
+    z-index: 10000 !important;
+    margin-top: 4px;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    border: 1px solid var(--color-border-secondary, #e5e7eb);
+    background-color: var(--color-bg-primary, #fff);
+}
+
+.pac-container .pac-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+    border-bottom: 1px solid var(--color-border-tertiary, #f3f4f6);
+}
+
+.pac-container .pac-item:last-child {
+    border-bottom: none;
+}
+
+.pac-container .pac-item:hover {
+    background-color: var(--color-bg-primary-hover, #f9fafb);
+}
+
+.pac-container .pac-item-query {
+    font-weight: 500;
+    color: var(--color-text-primary, #111827);
+}
+
+.pac-container .pac-item-query .pac-matched {
+    color: var(--color-brand-500, #6366f1);
+    font-weight: 700;
+}
+
+.pac-container .pac-item span {
+    color: var(--color-text-tertiary, #6b7280);
+    font-size: 0.875rem;
+}
+
+.pac-container .pac-icon {
+    display: none;
+}
+
+.pac-container::after {
+    display: none;
+}
+
+/* Dark mode support */
+.dark-mode .pac-container {
+    border-color: var(--color-border-secondary-alt, #374151);
+    background-color: var(--color-bg-primary, #1f2937);
+}
+
+.dark-mode .pac-container .pac-item {
+    border-bottom-color: var(--color-border-tertiary, #374151);
+}
+
+.dark-mode .pac-container .pac-item:hover {
+    background-color: var(--color-bg-secondary-hover, #374151);
+}
+
+.dark-mode .pac-container .pac-item-query {
+    color: var(--color-text-primary, #f9fafb);
+}
+
+.dark-mode .pac-container .pac-item-query .pac-matched {
+    color: var(--color-brand-400, #818cf8);
+}
+
+.dark-mode .pac-container .pac-item span {
+    color: var(--color-text-tertiary, #9ca3af);
+}
