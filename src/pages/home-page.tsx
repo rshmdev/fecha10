@@ -17,7 +17,6 @@ import { Button } from "@/components/base/buttons/button";
 import { Avatar } from "@/components/base/avatar/avatar";
 import { AppLayout } from "@/components/application/app-layout/app-layout";
 import { useAuth } from "@/providers/auth-provider";
-import { supabase } from "@/lib/supabase";
 import {
   getNextPelada,
   getParticipants,
@@ -116,22 +115,19 @@ function HomePage() {
 
   useEffect(() => {
     async function fetch() {
-      setIsLoading(true);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.user) {
+      if (!profile) {
         setIsLoading(false);
         return;
       }
+      setIsLoading(true);
 
-      const pelada = await getNextPelada(session.user.id);
+      const pelada = await getNextPelada(profile.id);
       setNextPelada(pelada);
 
       if (pelada) {
         const parts = await getParticipants(pelada.id);
         setParticipants(parts);
-        const myPart = parts.find((p) => p.profile_id === session.user.id);
+        const myPart = parts.find((p) => p.profile_id === profile.id);
         if (myPart) {
           setUserStatus(myPart.status as "confirmed" | "pending" | "declined");
         }
@@ -139,7 +135,7 @@ function HomePage() {
       setIsLoading(false);
     }
     fetch();
-  }, []);
+  }, [profile]);
 
   const handleConfirm = useCallback(async () => {
     if (!nextPelada || !profile) return;
@@ -176,7 +172,6 @@ function HomePage() {
 
   return (
     <AppLayout>
-
       <main className="mx-auto max-w-3xl space-y-8 px-4 pb-32 pt-20">
         <section className="space-y-1" aria-label="Saudação">
           <p className="font-display text-xs font-bold uppercase tracking-wider text-quaternary">
@@ -357,7 +352,10 @@ function HomePage() {
           </section>
         )}
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2" aria-label="Ações rápidas">
+        <section
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+          aria-label="Ações rápidas"
+        >
           <button
             type="button"
             onClick={() => navigate("/matches")}
@@ -405,8 +403,14 @@ function HomePage() {
         </section>
 
         {showInviteModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowInviteModal(false)}>
-            <div className="w-full max-w-md rounded-2xl bg-primary p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setShowInviteModal(false)}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl bg-primary p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="font-display text-lg font-bold text-primary">
                   Entrar em uma Pelada
@@ -421,14 +425,15 @@ function HomePage() {
               </div>
 
               <p className="mb-4 text-sm text-secondary">
-                Cole o código de convite ou o link que você recebeu do organizador.
+                Cole o código de convite ou o link que você recebeu do
+                organizador.
               </p>
 
               <input
                 type="text"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value)}
-                placeholder="Código de convite (ex: ABC123)"
+                placeholder="Código de convite"
                 className="mb-4 w-full rounded-xl border-2 border-secondary bg-secondary px-4 py-3 font-display text-lg font-bold uppercase tracking-widest text-primary placeholder:text-quaternary focus:border-brand-solid focus:outline-none"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {

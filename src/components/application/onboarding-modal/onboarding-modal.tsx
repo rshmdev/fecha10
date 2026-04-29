@@ -40,14 +40,11 @@ function PositionChip({
 }
 
 export function OnboardingModal() {
-  const { completeOnboarding, user, profile, needsOnboarding } = useAuth();
-  const [name, setName] = useState("");
+  const { completeOnboarding, profile } = useAuth();
   const [age, setAge] = useState("");
   const [positions, setPositions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  console.log("[ONBOARDING] render:", { userId: user?.id, hasProfile: !!profile, needsOnboarding });
 
   const togglePosition = useCallback((id: string) => {
     setPositions((prev) =>
@@ -60,11 +57,6 @@ export function OnboardingModal() {
       e.preventDefault();
       setError(null);
 
-      const trimmedName = name.trim();
-      if (!trimmedName) {
-        setError("Informe seu nome.");
-        return;
-      }
       if (!age || Number(age) < 10 || Number(age) > 99) {
         setError("Informe uma idade válida (10-99).");
         return;
@@ -74,26 +66,26 @@ export function OnboardingModal() {
         return;
       }
 
-      console.log("[ONBOARDING] submitting:", { name: trimmedName, age: Number(age), positions });
       setIsLoading(true);
       try {
-        const result = await completeOnboarding(trimmedName, Number(age), positions);
-        console.log("[ONBOARDING] result:", result);
+        const result = await completeOnboarding(
+          profile?.name ?? "",
+          Number(age),
+          positions,
+        );
         if (result.error) {
-          console.error("[ONBOARDING] error:", result.error);
           setError(result.error);
         }
-      } catch (err) {
-        console.error("[ONBOARDING] unexpected error:", err);
+      } catch {
         setError("Erro inesperado. Tente novamente.");
       } finally {
         setIsLoading(false);
       }
     },
-    [name, age, positions, completeOnboarding],
+    [age, positions, completeOnboarding, profile?.name],
   );
 
-  const isValid = name.trim() && age && Number(age) >= 10 && positions.length > 0;
+  const isValid = age && Number(age) >= 10 && positions.length > 0;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-overlay/80 px-4 backdrop-blur-[6px]">
@@ -112,18 +104,6 @@ export function OnboardingModal() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-6">
           <Input
-            label="Nome"
-            placeholder="Seu nome completo"
-            type="text"
-            value={name}
-            onChange={setName}
-            size="lg"
-            isRequired
-            className="label:ml-1 label:text-[12px] label:font-bold label:uppercase label:tracking-[0.05em] label:text-quaternary"
-            inputClassName="text-[15px] font-medium"
-          />
-
-          <Input
             label="Idade"
             placeholder="Ex: 25"
             type="number"
@@ -137,7 +117,8 @@ export function OnboardingModal() {
 
           <div>
             <label className="mb-3 block text-[12px] font-bold uppercase tracking-[0.05em] text-quaternary">
-              Posições que joga <span className="text-error-primary">*</span>
+              Posições que joga{" "}
+              <span className="text-error-primary">*</span>
             </label>
             <div className="flex flex-wrap gap-2">
               {POSITIONS.map((pos) => (

@@ -24,9 +24,7 @@ import {
   type Participant,
 } from "@/lib/peladas";
 import { cx } from "@/utils/cx";
-import {
-  notifyAdminPlayerJoined,
-} from "@/lib/notifications";
+import { notifyAdminPlayerJoined } from "@/lib/notifications";
 
 function JoinPage() {
   const navigate = useNavigate();
@@ -96,11 +94,13 @@ function JoinPage() {
         setIsJoining(false);
         return;
       }
+      if (existingParticipant.is_admin) {
+        setError("Você já é o organizador desta pelada.");
+        setIsJoining(false);
+        return;
+      }
       if (existingParticipant.status === "declined") {
-        const { error: updateError } = await joinPelada(
-          pelada.id,
-          profile.id,
-        );
+        const { error: updateError } = await joinPelada(pelada.id, profile.id);
         if (updateError) {
           setError("Erro ao confirmar participação. Tente novamente.");
           setIsJoining(false);
@@ -151,7 +151,7 @@ function JoinPage() {
           ),
         }}
       >
-        <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 pt-4">
+        <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-24 pt-20">
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="mb-4 flex size-16 items-center justify-center rounded-2xl bg-error-secondary">
               <XCircle className="size-8 text-error-primary" />
@@ -190,10 +190,13 @@ function JoinPage() {
           ),
         }}
       >
-        <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 pt-4">
+        <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-24 pt-20">
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="mb-4 flex size-16 items-center justify-center rounded-2xl bg-success-secondary">
-              <CheckCircle className="size-8 text-success-primary" style={{ fill: "currentColor" }} />
+              <CheckCircle
+                className="size-8 text-success-primary"
+                style={{ fill: "currentColor" }}
+              />
             </div>
             <h2 className="font-display text-xl font-bold text-primary">
               Você está dentro!
@@ -215,9 +218,7 @@ function JoinPage() {
     );
   }
 
-  const confirmedPlayers = participants.filter(
-    (p) => p.status === "confirmed",
-  );
+  const confirmedPlayers = participants.filter((p) => p.status === "confirmed");
 
   return (
     <AppLayout
@@ -233,7 +234,7 @@ function JoinPage() {
         ),
       }}
     >
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 pt-4">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-24 pt-20">
         <section className="mb-6 mt-4 text-center">
           <div className="mb-3 mx-auto flex size-14 items-center justify-center rounded-2xl bg-brand-primary/20">
             <Trophy01 className="size-7 text-fg-brand-secondary" />
@@ -270,7 +271,8 @@ function JoinPage() {
                     {formatDate(pelada.date)}
                   </p>
                   <p className="font-display text-xs text-secondary">
-                    {formatTime(pelada.start_time)} - {formatTime(pelada.end_time)}
+                    {formatTime(pelada.start_time)} -{" "}
+                    {formatTime(pelada.end_time)}
                   </p>
                 </div>
               </div>
@@ -359,7 +361,8 @@ function JoinPage() {
               Esta pelada está lotada!
             </p>
             <p className="mt-1 text-xs text-secondary">
-              Todos os lugares foram preenchidos, mas você pode entrar na lista de espera.
+              Todos os lugares foram preenchidos, mas você pode entrar na lista
+              de espera.
             </p>
           </div>
         )}
@@ -388,7 +391,10 @@ function JoinPage() {
               <div className="size-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
             ) : (
               <>
-                <CheckCircle className="size-5" style={{ fill: "currentColor" }} />
+                <CheckCircle
+                  className="size-5"
+                  style={{ fill: "currentColor" }}
+                />
                 {isFull ? "Lista de Espera" : "Vou Jogar!"}
               </>
             )}

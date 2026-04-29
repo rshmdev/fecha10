@@ -18,6 +18,7 @@ export interface Pelada {
   invite_code: string;
   recurrence_type: "unique" | "weekly" | null;
   recurrence_days: number[] | null;
+  parent_pelada_id?: string | null;
   created_at: string;
   updated_at: string;
   confirmed_count?: number;
@@ -84,7 +85,8 @@ export async function getNextPelada(
     .filter(
       (p) =>
         p.date >= new Date().toISOString().split("T")[0] &&
-        p.status !== "cancelled",
+        p.status !== "cancelled" &&
+        p.status !== "closed",
     )
     .sort((a, b) => {
       const dateA = new Date(`${a.date}T${a.start_time}`);
@@ -463,14 +465,8 @@ export async function getAdminPeladas(userId: string): Promise<Pelada[]> {
 
 export async function getFinanceParticipants(
   peladaId: string,
-  currentMonth: string,
+  _currentMonth: string,
 ): Promise<FinanceParticipant[]> {
-  console.log(
-    "Fetching finance participants for peladaId:",
-    peladaId,
-    "and month:",
-    currentMonth,
-  );
   const { data: participants, error: pError } = await supabase
     .from("participants")
     .select(
@@ -576,6 +572,34 @@ export async function markAsPaid(
   );
 
   if (error) return { error: error.message };
+  return { error: null };
+}
+
+export async function markAsPending(
+  peladaId: string,
+  profileId: string,
+  paymentType: "monthly" | "session",
+  currentMonth: string,
+): Promise<{ error: string | null }> {
+  if (paymentType === "monthly") {
+    const { error } = await supabase
+      .from("payments")
+      .delete()
+      .eq("pelada_id", peladaId)
+      .eq("profile_id", profileId)
+      .eq("payment_type", "monthly")
+      .eq("reference_month", currentMonth);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase
+      .from("payments")
+      .delete()
+      .eq("pelada_id", peladaId)
+      .eq("profile_id", profileId)
+      .eq("payment_type", "session")
+      .is("reference_month", null);
+    if (error) return { error: error.message };
+  }
   return { error: null };
 }
 
@@ -688,6 +712,212 @@ export async function deletePeladaNote(
     .from("pelada_notes")
     .delete()
     .eq("id", noteId);
+  if (error) return { error: error.message };
+  return { error: null };
+}
+
+export async function updatePelada(
+  peladaId: string,
+  updates: Partial<
+    Pick<
+      Pelada,
+      | "name"
+      | "description"
+      | "location"
+      | "latitude"
+      | "longitude"
+      | "date"
+      | "start_time"
+      | "end_time"
+      | "max_players"
+      | "price"
+      | "image_url"
+    >
+  >,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("peladas")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", peladaId);
+  if (error) return { error: error.message };
+  return { error: null };
+}
+
+export async function cancelPelada(
+  peladaId: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("peladas")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", peladaId);
+  if (error) return { error: error.message };
+  return { error: null };
+}
+
+export async function generateNextRecurringInstance(
+  peladaId: string,
+): Promise<{ data: Pelada | null; error: string | null }> {
+  const { data, error } = await supabase.rpc(
+    "generate_next_recurring_instance",
+    { pelada_id: peladaId },
+  );
+
+  if (error) return { data: null, error: error.message };
+  return { data: (data as Pelada) ?? null, error: null };
+}
+
+export async function closePastPeladasAndGenerateRecurring(
+  userId: string,
+): Promise<void> {
+  const peladas = await getUserPeladas(userId);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  for (const pelada of peladas) {
+    const peladaDate = new Date(pelada.date + "T00:00:00");
+    if (
+      peladaDate < today &&
+      pelada.status !== "closed" &&
+      pelada.status !== "cancelled"
+    ) {
+      if (
+        pelada.recurrence_type === "weekly" &&
+        pelada.recurrence_days &&
+        pelada.recurrence_days.length > 0
+      ) {
+        await generateNextRecurringInstance(pelada.id);
+      }
+
+      await supabase
+        .from("peladas")
+        .update({ status: "closed" })
+        .eq("id", pelada.id);
+    }
+  }
+}
+
+export interface UserPaymentRecord {
+  id: string;
+  pelada_id: string;
+  amount: number;
+  payment_type: "monthly" | "session";
+  reference_month: string | null;
+  status: "paid" | "pending";
+  paid_at: string | null;
+  created_at: string;
+  pelada: {
+    id: string;
+    name: string;
+    location: string;
+    date: string;
+    start_time: string;
+  } | null;
+}
+
+export async function getUserPayments(
+  userId: string,
+): Promise<UserPaymentRecord[]> {
+  const { data, error } = await supabase
+    .from("payments")
+    .select("*, pelada:peladas(id, name, location, date, start_time)")
+    .eq("profile_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching user payments:", error);
+    return [];
+  }
+
+  return (data ?? []) as unknown as UserPaymentRecord[];
+}
+
+export async function getUserParticipantPeladas(
+  userId: string,
+): Promise<Pelada[]> {
+  const { data, error } = await supabase
+    .from("participants")
+    .select("pelada_id, peladas(*)")
+    .eq("profile_id", userId)
+    .in("status", ["confirmed", "pending"])
+    .order("created_at", { referencedTable: "peladas", ascending: false });
+
+  if (error) {
+    console.error("Error fetching participant peladas:", error);
+    return [];
+  }
+
+  const peladas = (data ?? [])
+    .map((row: { pelada_id: string; peladas: Pelada | Pelada[] | null }) => {
+      if (Array.isArray(row.peladas)) return row.peladas[0];
+      return row.peladas;
+    })
+    .filter(Boolean) as Pelada[];
+
+  return peladas;
+}
+
+export interface MatchResult {
+  id: string;
+  pelada_id: string;
+  team_a_name: string;
+  team_b_name: string;
+  team_a_score: number;
+  team_b_score: number;
+  duration_minutes: number;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export async function getMatchResults(
+  peladaId: string,
+): Promise<MatchResult[]> {
+  const { data, error } = await supabase
+    .from("match_results")
+    .select("*")
+    .eq("pelada_id", peladaId)
+    .order("created_at", { ascending: true });
+
+  if (error) return [];
+  return (data ?? []) as MatchResult[];
+}
+
+export async function createMatchResult(
+  peladaId: string,
+  createdBy: string,
+  teamAName: string,
+  teamBName: string,
+  teamAScore: number,
+  teamBScore: number,
+  durationMinutes: number,
+  notes?: string,
+): Promise<{ data: MatchResult | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from("match_results")
+    .insert({
+      pelada_id: peladaId,
+      created_by: createdBy,
+      team_a_name: teamAName,
+      team_b_name: teamBName,
+      team_a_score: teamAScore,
+      team_b_score: teamBScore,
+      duration_minutes: durationMinutes,
+      notes: notes || null,
+    })
+    .select()
+    .single();
+
+  if (error) return { data: null, error: error.message };
+  return { data: data as MatchResult, error: null };
+}
+
+export async function deleteMatchResult(
+  resultId: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("match_results")
+    .delete()
+    .eq("id", resultId);
   if (error) return { error: error.message };
   return { error: null };
 }

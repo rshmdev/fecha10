@@ -16,8 +16,10 @@ export const TopAppBar = ({ leading, title, trailing, className }: TopAppBarProp
         className,
       )}
     >
-      <div className="flex items-center gap-3">{leading}</div>
-      {title && <div className="font-display">{title}</div>}
+      <div className="flex items-center gap-3">
+        {leading}
+        {title && <div className="font-display">{title}</div>}
+      </div>
       <div className="flex items-center gap-3">{trailing}</div>
     </header>
   );

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   TopAppBar,
@@ -22,6 +22,7 @@ import {
 import { cx } from "@/utils/cx";
 import logoFecha10 from "@/assets/logo-fecha10.png";
 import { usePushNotification } from "@/hooks/use-push-notification";
+import { getUnreadNotificationCount } from "@/lib/notifications";
 
 export interface AppLayoutProps {
   children: ReactNode;
@@ -37,8 +38,13 @@ export const defaultNavItems: NavItem[] = [
   { label: "Perfil", icon: User01, href: "/profile" },
 ];
 
-function NotificationBell() {
+function NotificationBell({ deviceId }: { deviceId: string }) {
   const navigate = useNavigate();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    getUnreadNotificationCount(deviceId).then(setUnreadCount);
+  }, [deviceId]);
 
   return (
     <button
@@ -47,7 +53,9 @@ function NotificationBell() {
       className="relative rounded-full p-2 text-fg-quaternary transition-colors hover:bg-primary_hover active:scale-95"
     >
       <Bell01 className="size-5" />
-      <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-error-solid" />
+      {unreadCount > 0 && (
+        <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-error-solid" />
+      )}
     </button>
   );
 }
@@ -59,7 +67,7 @@ export function AppLayout({
 }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, isAuthenticated } = useAuth();
+  const { profile, isAuthenticated, deviceId } = useAuth();
   const { requestPermission, registerToken } = usePushNotification();
 
   useEffect(() => {
@@ -81,7 +89,7 @@ export function AppLayout({
 
   const defaultTrailing = (
     <div className="flex items-center gap-2">
-      <NotificationBell />
+      <NotificationBell deviceId={deviceId} />
       <button
         type="button"
         onClick={() => navigate("/profile")}

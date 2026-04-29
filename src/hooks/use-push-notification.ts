@@ -11,7 +11,7 @@ export function usePushNotification() {
   const [permission, setPermission] = useState<NotificationPermission>(
     typeof Notification !== "undefined" ? Notification.permission : "default"
   );
-  const { user } = useAuth();
+  const { deviceId } = useAuth();
 
   const requestPermission = useCallback(async () => {
     if (typeof Notification === "undefined") return false;
@@ -21,7 +21,7 @@ export function usePushNotification() {
   }, []);
 
   const registerToken = useCallback(async () => {
-    if (!user) return null;
+    if (!deviceId) return null;
     const messaging = await getFirebaseMessaging();
     if (!messaging || permission !== "granted") return null;
 
@@ -29,17 +29,17 @@ export function usePushNotification() {
       const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
       if (currentToken) {
         setToken(currentToken);
-        await saveFcmToken(user.id, currentToken);
+        await saveFcmToken(deviceId, currentToken);
         return currentToken;
       }
     } catch (error) {
       console.error("[PUSH] Failed to get token:", error);
     }
     return null;
-  }, [user, permission]);
+  }, [deviceId, permission]);
 
   useEffect(() => {
-    if (permission !== "granted" || !user) return;
+    if (permission !== "granted" || !deviceId) return;
 
     let unsubFn: (() => void) | null = null;
 
@@ -56,7 +56,7 @@ export function usePushNotification() {
     return () => {
       if (unsubFn) unsubFn();
     };
-  }, [permission, user]);
+  }, [permission, deviceId]);
 
   return { token, permission, requestPermission, registerToken };
 }

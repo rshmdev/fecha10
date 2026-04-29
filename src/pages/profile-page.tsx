@@ -17,7 +17,6 @@ import {
   getPeladaHistory,
   formatDate,
   formatTime,
-  formatPhone,
   type ProfileStats,
   type PeladaHistory,
 } from "@/lib/peladas";
@@ -25,7 +24,7 @@ import { cx } from "@/utils/cx";
 
 function ProfilePage() {
   const navigate = useNavigate();
-  const { user, profile, logout, updateProfile } = useAuth();
+  const { deviceId, profile, logout, updateProfile } = useAuth();
   const [stats, setStats] = useState<ProfileStats>({
     totalGames: 0,
     attendanceRate: 0,
@@ -38,10 +37,10 @@ function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
-    getProfileStats(user.id).then(setStats);
-    getPeladaHistory(user.id).then(setHistory);
-  }, [user]);
+    if (!deviceId) return;
+    getProfileStats(deviceId).then(setStats);
+    getPeladaHistory(deviceId).then(setHistory);
+  }, [deviceId]);
 
   const startEditing = useCallback(() => {
     if (!profile) return;
@@ -69,7 +68,6 @@ function ProfilePage() {
   }, [editName, editAge, editPositions, updateProfile]);
 
   const displayName = profile?.name ?? "Jogador";
-  const displayPhone = profile?.phone ?? user?.phone ?? "";
   const initials = displayName
     .split(" ")
     .map((n) => n[0])
@@ -103,9 +101,6 @@ function ProfilePage() {
           <h2 className="font-display text-2xl font-bold text-primary">
             {displayName}
           </h2>
-          <p className="mt-1 text-base text-secondary">
-            {formatPhone(displayPhone)}
-          </p>
           {profile?.positions && profile.positions.length > 0 && (
             <div className="mt-3 flex flex-wrap justify-center gap-2">
               {profile.positions.map((pos) => (
@@ -260,7 +255,7 @@ function ProfilePage() {
           <div className="border-t border-secondary">
             <button
               type="button"
-              onClick={() => navigate("/finance")}
+              onClick={() => navigate("/my-payments")}
               className="flex w-full items-center justify-between px-5 py-4 transition-colors hover:bg-primary_hover"
             >
               <div className="flex items-center gap-3">

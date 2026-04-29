@@ -118,7 +118,7 @@ function CreateMatchPage() {
         setError("Informe o nome da pelada.");
         return;
       }
-      if (!date) {
+      if (recurrenceType === "unique" && !date) {
         setError("Informe a data.");
         return;
       }
@@ -141,6 +141,10 @@ function CreateMatchPage() {
 
       setIsSubmitting(true);
 
+      const peladaDate = recurrenceType === "weekly" && selectedDays.length > 0
+        ? getNextWeekday(selectedDays)
+        : date;
+
       const result = await createPelada({
         admin_id: profile.id,
         name: name.trim(),
@@ -148,7 +152,7 @@ function CreateMatchPage() {
         location: location.trim(),
         latitude,
         longitude,
-        date,
+        date: peladaDate,
         start_time: startTime,
         end_time: endTime,
         max_players: parseInt(maxPlayers, 10) || 14,
@@ -156,6 +160,7 @@ function CreateMatchPage() {
         image_url: null,
         recurrence_type: recurrenceType,
         recurrence_days: recurrenceType === "weekly" ? selectedDays : null,
+        parent_pelada_id: null,
       });
 
       setIsSubmitting(false);
@@ -182,6 +187,7 @@ function CreateMatchPage() {
       navigate,
       recurrenceType,
       selectedDays,
+      getNextWeekday,
     ],
   );
 
@@ -299,21 +305,33 @@ function CreateMatchPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <label className="ml-1 font-display text-xs font-bold uppercase tracking-wider text-secondary">
-                DATA
-              </label>
-              <Input
-                type="date"
-                size="lg"
-                value={date}
-                onChange={setDate}
-                isRequired
-                wrapperClassName="h-14 rounded-2xl"
-                inputClassName="font-medium text-tertiary"
-              />
-            </div>
+          <div className="flex flex-col gap-4">
+            {recurrenceType === "unique" && (
+              <div className="flex flex-col gap-2">
+                <label className="ml-1 font-display text-xs font-bold uppercase tracking-wider text-secondary">
+                  DATA
+                </label>
+                <Input
+                  type="date"
+                  size="lg"
+                  value={date}
+                  onChange={setDate}
+                  isRequired
+                  wrapperClassName="h-14 rounded-2xl"
+                  inputClassName="font-medium text-tertiary"
+                />
+              </div>
+            )}
+            {recurrenceType === "weekly" && (
+              <div className="flex flex-col gap-2">
+                <label className="ml-1 font-display text-xs font-bold uppercase tracking-wider text-secondary">
+                  PRÓXIMA DATA
+                </label>
+                <div className="flex h-14 items-center rounded-2xl border-2 border-secondary bg-secondary px-4 font-display text-sm text-tertiary">
+                  Automática (baseado nos dias selecionados)
+                </div>
+              </div>
+            )}
             <div className="flex flex-col gap-2">
               <label className="ml-1 font-display text-xs font-bold uppercase tracking-wider text-secondary">
                 HORÁRIO

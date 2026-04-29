@@ -14,6 +14,12 @@ import {
   AlertHexagon,
   Share07,
   Copy01,
+  Pencil01,
+  Trash02,
+  LogOut01,
+  XClose,
+  Bell01,
+  Trophy01,
 } from "@untitledui/icons";
 import { Avatar } from "@/components/base/avatar/avatar";
 import { AppLayout } from "@/components/application/app-layout/app-layout";
@@ -25,12 +31,16 @@ import {
   getParticipants,
   joinPelada,
   declinePelada,
+  removeParticipation,
+  updatePelada,
+  cancelPelada,
   type Pelada,
   type Participant,
 } from "@/lib/peladas";
 import {
   notifyAdminPlayerJoined,
   notifyAdminPlayerDeclined,
+  sendReminderToPending,
 } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
 import { cx } from "@/utils/cx";
@@ -138,6 +148,21 @@ function MatchDetailPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [copiedToClipboard, setCopiedToClipboard] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    description: "",
+    location: "",
+    date: "",
+    start_time: "",
+    end_time: "",
+    max_players: 0,
+    price: 0,
+  });
+  const [isEditing, setIsEditing] = useState(false);
+  const [reminderSent, setReminderSent] = useState(false);
   const currentPeladaId = peladaId ?? "mock-pelada-id";
 
   useEffect(() => {
@@ -241,6 +266,85 @@ function MatchDetailPage() {
     );
   };
 
+  const handleLeave = async () => {
+    if (!profile?.id) return;
+    setIsSubmitting(true);
+    const { error } = await removeParticipation(currentPeladaId, profile.id);
+    setIsSubmitting(false);
+    if (!error) {
+      setUserStatus(null);
+      const participantsData = await getParticipants(currentPeladaId);
+      setParticipants(participantsData);
+      setShowLeaveConfirm(false);
+    }
+  };
+
+  const openEditModal = () => {
+    if (!pelada) return;
+    setEditForm({
+      name: pelada.name,
+      description: pelada.description ?? "",
+      location: pelada.location,
+      date: pelada.date,
+      start_time: pelada.start_time,
+      end_time: pelada.end_time,
+      max_players: pelada.max_players,
+      price: pelada.price ?? 0,
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!pelada) return;
+    setIsEditing(true);
+    const { error } = await updatePelada(currentPeladaId, {
+      name: editForm.name,
+      description: editForm.description || null,
+      location: editForm.location,
+      date: editForm.date,
+      start_time: editForm.start_time,
+      end_time: editForm.end_time,
+      max_players: editForm.max_players,
+      price: editForm.price,
+    });
+    setIsEditing(false);
+    if (!error) {
+      const updated = await getPeladaById(currentPeladaId);
+      setPelada(updated);
+      setShowEditModal(false);
+    }
+  };
+
+  const handleCancelPelada = async () => {
+    setIsSubmitting(true);
+    const { error } = await cancelPelada(currentPeladaId);
+    setIsSubmitting(false);
+    if (!error) {
+      setPelada((prev) => (prev ? { ...prev, status: "cancelled" } : null));
+      setShowCancelConfirm(false);
+    }
+  };
+
+  const handleSendReminder = async () => {
+    if (!pelada) return;
+    const pendingPlayers = participants.filter(
+      (p) => p.status === "pending" || p.status === "confirmed",
+    );
+    if (pendingPlayers.length === 0) return;
+
+    setIsSubmitting(true);
+    await sendReminderToPending(
+      pendingPlayers.map((p) => p.profile_id),
+      pelada.name,
+      currentPeladaId,
+      pelada.date,
+      pelada.start_time,
+    );
+    setIsSubmitting(false);
+    setReminderSent(true);
+    setTimeout(() => setReminderSent(false), 3000);
+  };
+
   const confirmedCount = participants.filter(
     (p) => p.status === "confirmed",
   ).length;
@@ -254,7 +358,13 @@ function MatchDetailPage() {
   const appBaseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
   const inviteLink = pelada ? `${appBaseUrl}/join/${pelada.invite_code}` : "";
   const shareText = pelada
-    ? `Venha jogar! 🏟️\n${pelada.name}\n📅 ${pelada.date} às ${pelada.start_time.slice(0, 5)}\n📍 ${pelada.location}${pelada.price ? `\n💰 R$ ${pelada.price.toFixed(2).replace(".", ",")}` : ""}\n\nEntre pelo link: ${inviteLink}`
+    ? `Venha jogar! 🏟️\n${pelada.name}\n📅 ${
+        pelada.date
+      } às ${pelada.start_time.slice(0, 5)}\n📍 ${pelada.location}${
+        pelada.price
+          ? `\n💰 R$ ${pelada.price.toFixed(2).replace(".", ",")}`
+          : ""
+      }\n\nEntre pelo link: ${inviteLink}`
     : "";
 
   const handleCopyLink = async () => {
@@ -326,7 +436,7 @@ function MatchDetailPage() {
         ),
       }}
     >
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 pt-4">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-24 pt-20">
         <div className="mb-6 overflow-hidden rounded-2xl bg-primary shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
           <div className="relative h-32 overflow-hidden bg-brand-solid">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.2),transparent)]" />
@@ -452,8 +562,14 @@ function MatchDetailPage() {
         </div>
 
         {showShareModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowShareModal(false)}>
-            <div className="w-full max-w-md rounded-2xl bg-primary p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setShowShareModal(false)}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl bg-primary p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="font-display text-lg font-bold text-primary">
                   Compartilhar Convite
@@ -468,7 +584,8 @@ function MatchDetailPage() {
               </div>
 
               <p className="mb-4 text-sm text-secondary">
-                Envie o link ou código de convite para seus amigos entrarem nesta pelada.
+                Envie o link ou código de convite para seus amigos entrarem
+                nesta pelada.
               </p>
 
               <div className="mb-4 rounded-xl bg-secondary p-4">
@@ -484,9 +601,7 @@ function MatchDetailPage() {
                 <p className="mb-1 font-display text-[10px] font-bold uppercase tracking-widest text-quaternary">
                   Link de Convite
                 </p>
-                <p className="break-all text-sm text-primary">
-                  {inviteLink}
-                </p>
+                <p className="break-all text-sm text-primary">{inviteLink}</p>
               </div>
 
               <div className="flex gap-3">
@@ -515,70 +630,135 @@ function MatchDetailPage() {
           </div>
         )}
 
-        {isAdmin && (
-        <div className="mb-8">
-          <div className="mb-3 flex items-center gap-2">
-            <Settings01 className="size-5 text-fg-brand-secondary" />
-            <h3 className="font-display text-xs font-bold uppercase tracking-widest text-quaternary">
-              Ações do Organizador
-            </h3>
+        {isAdmin && pelada.status !== "cancelled" && pelada.status !== "closed" && (
+          <div className="mb-8">
+            <div className="mb-3 flex items-center gap-2">
+              <Settings01 className="size-5 text-fg-brand-secondary" />
+              <h3 className="font-display text-xs font-bold uppercase tracking-widest text-quaternary">
+                Ações do Organizador
+              </h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <button
+                type="button"
+                onClick={openEditModal}
+                className="flex h-12 items-center justify-center gap-2 rounded-xl border-2 border-secondary text-secondary font-medium transition-colors hover:bg-secondary"
+              >
+                <Pencil01 className="size-5" />
+                Editar
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(`/draw-teams/${currentPeladaId}`)}
+                className="flex h-12 items-center justify-center gap-2 rounded-xl border-2 border-secondary text-secondary font-medium transition-colors hover:bg-secondary"
+              >
+                <Shuffle01 className="size-5" />
+                Sortear
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(`/draw-teams/${currentPeladaId}?mode=manual`)
+                }
+                className="flex h-12 items-center justify-center gap-2 rounded-xl border-2 border-secondary text-secondary font-medium transition-colors hover:bg-secondary"
+              >
+                <UserEdit className="size-5" />
+                Manual
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCancelConfirm(true)}
+                className="flex h-12 items-center justify-center gap-2 rounded-xl border-2 border-error-primary/30 text-error-primary font-medium transition-colors hover:bg-error-primary/10"
+              >
+                <Trash02 className="size-5" />
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(`/match-results/${currentPeladaId}`)}
+                className="flex h-12 items-center justify-center gap-2 rounded-xl border-2 border-brand-solid/30 text-brand-secondary font-medium transition-colors hover:bg-brand-solid/10"
+              >
+                <Trophy01 className="size-5" />
+                Placar
+              </button>
+            </div>
+            {pendingCount > 0 && (
+              <button
+                type="button"
+                onClick={handleSendReminder}
+                disabled={isSubmitting || reminderSent}
+                className={cx(
+                  "mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 font-display text-sm font-bold transition-all",
+                  reminderSent
+                    ? "bg-success-primary/10 text-success-primary"
+                    : "bg-brand-solid/10 text-brand-secondary hover:bg-brand-solid/20",
+                )}
+              >
+                {reminderSent ? (
+                  <>
+                    <CheckCircle className="size-5" />
+                    Lembrete enviado!
+                  </>
+                ) : (
+                  <>
+                    <Bell01 className="size-5" />
+                    Cobrar {pendingCount} pendente{pendingCount > 1 ? "s" : ""}
+                  </>
+                )}
+              </button>
+            )}
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        )}
+
+        {!isAdmin && userStatus === "confirmed" && pelada.status !== "cancelled" && pelada.status !== "closed" && (
+          <div className="mb-8">
             <button
               type="button"
-              onClick={() => navigate(`/draw-teams/${currentPeladaId}`)}
-              className="flex h-12 items-center justify-center gap-2 rounded-xl border-2 border-secondary text-secondary font-medium transition-colors hover:bg-secondary"
+              onClick={() => setShowLeaveConfirm(true)}
+              disabled={isSubmitting}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-error-primary/30 py-3 text-error-primary font-medium transition-colors hover:bg-error-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Shuffle01 className="size-5" />
-              Sortear times
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate(`/draw-teams/${currentPeladaId}?mode=manual`)}
-              className="flex h-12 items-center justify-center gap-2 rounded-xl border-2 border-secondary text-secondary font-medium transition-colors hover:bg-secondary"
-            >
-              <UserEdit className="size-5" />
-              Dividir manualmente
+              <LogOut01 className="size-5" />
+              Sair da Pelada
             </button>
           </div>
-        </div>
-      )}
+        )}
 
         <div className="flex flex-col">
-<div className="mb-4 flex overflow-x-auto border-b border-quaternary scrollbar-hide">
+          <div className="mb-4 flex overflow-x-auto border-b border-quaternary scrollbar-hide">
             <button
               type="button"
               onClick={() => setActiveTab("confirmed")}
               className={cx(
-              "flex-1 whitespace-nowrap px-2 py-3 font-display text-[11px] font-bold uppercase tracking-wider transition-colors sm:text-xs",
-              activeTab === "confirmed"
-                ? "border-b-2 border-brand-solid text-brand-secondary"
-                : "text-quaternary hover:text-secondary",
-            )}
+                "flex-1 whitespace-nowrap px-2 py-3 font-display text-[11px] font-bold uppercase tracking-wider transition-colors sm:text-xs",
+                activeTab === "confirmed"
+                  ? "border-b-2 border-brand-solid text-brand-secondary"
+                  : "text-quaternary hover:text-secondary",
+              )}
             >
               Confirmados ({confirmedCount})
             </button>
-<button
+            <button
               type="button"
               onClick={() => setActiveTab("pending")}
               className={cx(
-              "flex-1 whitespace-nowrap px-2 py-3 font-display text-[11px] font-bold uppercase tracking-wider transition-colors sm:text-xs",
-              activeTab === "pending"
-                ? "border-b-2 border-brand-solid text-brand-secondary"
-                : "text-quaternary hover:text-secondary",
-            )}
+                "flex-1 whitespace-nowrap px-2 py-3 font-display text-[11px] font-bold uppercase tracking-wider transition-colors sm:text-xs",
+                activeTab === "pending"
+                  ? "border-b-2 border-brand-solid text-brand-secondary"
+                  : "text-quaternary hover:text-secondary",
+              )}
             >
               Pendentes ({pendingCount})
             </button>
-<button
+            <button
               type="button"
               onClick={() => setActiveTab("declined")}
               className={cx(
-              "flex-1 whitespace-nowrap px-2 py-3 font-display text-[11px] font-bold uppercase tracking-wider transition-colors sm:text-xs",
-              activeTab === "declined"
-                ? "border-b-2 border-brand-solid text-brand-secondary"
-                : "text-quaternary hover:text-secondary",
-            )}
+                "flex-1 whitespace-nowrap px-2 py-3 font-display text-[11px] font-bold uppercase tracking-wider transition-colors sm:text-xs",
+                activeTab === "declined"
+                  ? "border-b-2 border-brand-solid text-brand-secondary"
+                  : "text-quaternary hover:text-secondary",
+              )}
             >
               Recusados ({declinedCount})
             </button>
@@ -616,6 +796,245 @@ function MatchDetailPage() {
           </div>
         </div>
       </main>
+
+      {showEditModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowEditModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-primary p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="font-display text-lg font-bold text-primary">
+                Editar Pelada
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="rounded-full p-1 text-fg-quaternary transition-colors hover:bg-secondary"
+              >
+                <XClose className="size-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase text-quaternary">
+                  Nome
+                </label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) =>
+                    setEditForm((f) => ({ ...f, name: e.target.value }))
+                  }
+                  className="w-full rounded-xl border border-primary bg-primary px-4 py-3 text-sm text-primary outline-none focus:ring-2 focus:ring-brand"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase text-quaternary">
+                  Descrição
+                </label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) =>
+                    setEditForm((f) => ({ ...f, description: e.target.value }))
+                  }
+                  rows={2}
+                  className="w-full rounded-xl border border-primary bg-primary px-4 py-3 text-sm text-primary outline-none focus:ring-2 focus:ring-brand"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase text-quaternary">
+                  Local
+                </label>
+                <input
+                  type="text"
+                  value={editForm.location}
+                  onChange={(e) =>
+                    setEditForm((f) => ({ ...f, location: e.target.value }))
+                  }
+                  className="w-full rounded-xl border border-primary bg-primary px-4 py-3 text-sm text-primary outline-none focus:ring-2 focus:ring-brand"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase text-quaternary">
+                    Data
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.date}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, date: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-primary bg-primary px-3 py-3 text-sm text-primary outline-none focus:ring-2 focus:ring-brand"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase text-quaternary">
+                    Início
+                  </label>
+                  <input
+                    type="time"
+                    value={editForm.start_time}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, start_time: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-primary bg-primary px-3 py-3 text-sm text-primary outline-none focus:ring-2 focus:ring-brand"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase text-quaternary">
+                    Fim
+                  </label>
+                  <input
+                    type="time"
+                    value={editForm.end_time}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, end_time: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-primary bg-primary px-3 py-3 text-sm text-primary outline-none focus:ring-2 focus:ring-brand"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase text-quaternary">
+                    Máx. Jogadores
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.max_players}
+                    onChange={(e) =>
+                      setEditForm((f) => ({
+                        ...f,
+                        max_players: parseInt(e.target.value) || 0,
+                      }))
+                    }
+                    min={4}
+                    max={40}
+                    className="w-full rounded-xl border border-primary bg-primary px-3 py-3 text-sm text-primary outline-none focus:ring-2 focus:ring-brand"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold uppercase text-quaternary">
+                    Preço (R$)
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.price}
+                    onChange={(e) =>
+                      setEditForm((f) => ({
+                        ...f,
+                        price: parseFloat(e.target.value) || 0,
+                      }))
+                    }
+                    min={0}
+                    step={0.01}
+                    className="w-full rounded-xl border border-primary bg-primary px-3 py-3 text-sm text-primary outline-none focus:ring-2 focus:ring-brand"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={isEditing || !editForm.name.trim()}
+                className="w-full rounded-xl bg-brand-solid py-3 font-display text-sm font-bold uppercase text-primary_on-brand transition-all hover:bg-brand-solid_hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isEditing ? "Salvando..." : "Salvar Alterações"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCancelConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowCancelConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-primary p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full bg-error-primary/10">
+                <AlertHexagon className="size-5 text-error-primary" />
+              </div>
+              <h3 className="font-display text-lg font-bold text-primary">
+                Cancelar Pelada?
+              </h3>
+            </div>
+            <p className="mb-6 text-sm text-secondary">
+              Todos os participantes serão notificados e a pelada será marcada
+              como cancelada. Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowCancelConfirm(false)}
+                className="flex-1 rounded-xl border-2 border-secondary py-3 font-display text-sm font-bold text-secondary transition-colors hover:bg-secondary"
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelPelada}
+                disabled={isSubmitting}
+                className="flex-1 rounded-xl bg-error-primary py-3 font-display text-sm font-bold text-white transition-all hover:bg-error-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting ? "Cancelando..." : "Sim, Cancelar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLeaveConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowLeaveConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-primary p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full bg-warning-primary/10">
+                <LogOut01 className="size-5 text-warning-primary" />
+              </div>
+              <h3 className="font-display text-lg font-bold text-primary">
+                Sair da Pelada?
+              </h3>
+            </div>
+            <p className="mb-6 text-sm text-secondary">
+              Você será removido da lista de participantes. O organizador será
+              notificado.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowLeaveConfirm(false)}
+                className="flex-1 rounded-xl border-2 border-secondary py-3 font-display text-sm font-bold text-secondary transition-colors hover:bg-secondary"
+              >
+                Ficar
+              </button>
+              <button
+                type="button"
+                onClick={handleLeave}
+                disabled={isSubmitting}
+                className="flex-1 rounded-xl bg-error-primary py-3 font-display text-sm font-bold text-white transition-all hover:bg-error-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting ? "Saindo..." : "Sim, Sair"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

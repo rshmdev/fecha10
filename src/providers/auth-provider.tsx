@@ -7,8 +7,18 @@ import {
   type FC,
   type ReactNode,
 } from "react";
-import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+
+const DEVICE_ID_KEY = "fecha10_device_id";
+
+function getOrCreateDeviceId(): string {
+  let id = localStorage.getItem(DEVICE_ID_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(DEVICE_ID_KEY, id);
+  }
+  return id;
+}
 
 export interface Profile {
   id: string;
@@ -22,17 +32,12 @@ export interface Profile {
 }
 
 interface AuthContextType {
-  user: User | null;
+  deviceId: string;
   profile: Profile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   needsOnboarding: boolean;
-  phone: string | null;
-  sendOtp: (phone: string) => Promise<{ error: string | null }>;
-  verifyOtp: (
-    phone: string,
-    token: string,
-  ) => Promise<{ error: string | null }>;
+  login: (name: string) => Promise<{ error: string | null }>;
   completeOnboarding: (
     name: string,
     age: number,
@@ -54,185 +59,85 @@ export const useAuth = () => {
   return ctx;
 };
 
-async function fetchProfile(userId: string): Promise<Profile | null> {
+async function fetchProfile(deviceId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from("profiles")
     .select("*")
-    .eq("id", userId)
+    .eq("id", deviceId)
     .maybeSingle();
 
-  if (error) {
-    console.error(
-      "[AUTH] fetchProfile error:",
-      error.message,
-      error.code,
-      error.details,
-    );
-    return null;
-  }
-
+  if (error) return null;
   return data ? (data as Profile) : null;
 }
 
 export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [deviceId] = useState(() => getOrCreateDeviceId());
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const isAuthenticated = !!user;
+  const isAuthenticated = !!profile?.name;
   const needsOnboarding =
     !isLoading &&
-    isAuthenticated &&
-    !(profile && profile.name && profile.name.trim().length > 0);
-  const phone = user?.phone ?? user?.user_metadata?.phone ?? null;
+    !!profile &&
+    !(profile.name && profile.name.trim().length > 0);
 
-  const loadProfile = useCallback(async (nextUser: User) => {
-    try {
-      let p = await fetchProfile(nextUser.id);
-
-      if (!p) {
-        const fallbackPhone =
-          nextUser.phone ?? nextUser.user_metadata?.phone ?? "";
-        const { error: upsertError } = await supabase.from("profiles").upsert(
-          {
-            id: nextUser.id,
-            phone: fallbackPhone,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "id" },
-        );
-
-        if (upsertError) {
-          console.error(
-            "[AUTH] loadProfile fallback upsert error:",
-            upsertError.message,
-            upsertError.code,
-            upsertError.details,
-          );
-        } else {
-          p = await fetchProfile(nextUser.id);
-        }
-      }
-
-      setProfile(p ?? null);
-    } catch (err) {
-      console.error("[AUTH] loadProfile error:", err);
-      setProfile(null);
-    }
+  const loadProfile = useCallback(async (id: string) => {
+    const p = await fetchProfile(id);
+    setProfile(p);
   }, []);
 
   useEffect(() => {
     let mounted = true;
-    let timeoutId: ReturnType<typeof setTimeout>;
 
     async function initialize() {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (!mounted) return;
-
-        if (session?.user) {
-          setUser(session.user);
-          await loadProfile(session.user);
-        } else {
-          setUser(null);
-          setProfile(null);
-        }
-      } catch (err) {
-        console.error("[AUTH] init error:", err);
+        await loadProfile(deviceId);
+      } catch {
+        setProfile(null);
       } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
+        if (mounted) setIsLoading(false);
       }
     }
 
     initialize();
 
-    // Safety net: force loading=false after 5s
-    // eslint-disable-next-line prefer-const
-    timeoutId = setTimeout(() => {
-      if (mounted) {
-        setIsLoading(false);
-      }
-    }, 5000);
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!mounted) return;
-
-      // Run async auth handling outside the Supabase auth callback to avoid dead-locks.
-      setTimeout(() => {
-        if (!mounted) return;
-
-        void (async () => {
-          switch (event) {
-            case "INITIAL_SESSION": {
-              // Already handled by initialize()
-              break;
-            }
-            case "SIGNED_IN":
-            case "TOKEN_REFRESHED": {
-              const u = session?.user ?? null;
-              setUser(u);
-              if (u) {
-                await loadProfile(u);
-              }
-              setIsLoading(false);
-              break;
-            }
-            case "SIGNED_OUT": {
-              setUser(null);
-              setProfile(null);
-              setIsLoading(false);
-              break;
-            }
-            default:
-              break;
-          }
-        })();
-      }, 0);
-    });
+    const timeoutId = setTimeout(() => {
+      if (mounted) setIsLoading(false);
+    }, 3000);
 
     return () => {
       mounted = false;
       clearTimeout(timeoutId);
-      subscription.unsubscribe();
     };
-  }, [loadProfile]);
+  }, [deviceId, loadProfile]);
 
-  const sendOtp = useCallback(async (phoneNumber: string) => {
-    const { error } = await supabase.auth.signInWithOtp({ phone: phoneNumber });
-    if (error) {
-      console.log(error);
-      console.error("[AUTH] sendOtp error:", error.message);
-      return { error: error.message };
-    }
-    return { error: null };
-  }, []);
+  const login = useCallback(
+    async (name: string) => {
+      const trimmedName = name.trim();
+      if (!trimmedName) return { error: "Informe seu nome." };
 
-  const verifyOtp = useCallback(async (phoneNumber: string, token: string) => {
-    const { error } = await supabase.auth.verifyOtp({
-      phone: phoneNumber,
-      token,
-      type: "sms",
-    });
-    if (error) {
-      console.error("[AUTH] verifyOtp error:", error.message);
-      return { error: error.message };
-    }
-    return { error: null };
-  }, []);
+      const payload = {
+        id: deviceId,
+        name: trimmedName,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from("profiles")
+        .upsert(payload, { onConflict: "id" });
+
+      if (error) return { error: error.message };
+
+      await loadProfile(deviceId);
+      return { error: null };
+    },
+    [deviceId, loadProfile],
+  );
 
   const completeOnboarding = useCallback(
     async (name: string, age: number, positions: string[]) => {
-      if (!user) return { error: "Not authenticated" };
-
       const payload = {
-        id: user.id,
-        phone: phone ?? "",
+        id: deviceId,
         name,
         age,
         positions,
@@ -243,20 +148,12 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
         .from("profiles")
         .upsert(payload, { onConflict: "id" });
 
-      if (error) {
-        console.error(
-          "[AUTH] completeOnboarding FAILED:",
-          error.message,
-          error.code,
-          error.details,
-        );
-        return { error: error.message };
-      }
+      if (error) return { error: error.message };
 
-      await loadProfile(user);
+      await loadProfile(deviceId);
       return { error: null };
     },
-    [user, phone, loadProfile],
+    [deviceId, loadProfile],
   );
 
   const updateProfile = useCallback(
@@ -265,41 +162,34 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
         Pick<Profile, "name" | "age" | "positions" | "avatar_url">
       >,
     ) => {
-      if (!user) return { error: "Not authenticated" };
-
       const { error } = await supabase
         .from("profiles")
         .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq("id", user.id);
+        .eq("id", deviceId);
 
-      if (error) {
-        console.error("[AUTH] updateProfile error:", error.message);
-        return { error: error.message };
-      }
+      if (error) return { error: error.message };
 
-      await loadProfile(user);
+      await loadProfile(deviceId);
       return { error: null };
     },
-    [user, loadProfile],
+    [deviceId, loadProfile],
   );
 
   const logout = useCallback(async () => {
-    await supabase.auth.signOut();
-    setUser(null);
+    localStorage.removeItem(DEVICE_ID_KEY);
     setProfile(null);
+    window.location.reload();
   }, []);
 
   return (
     <AuthContext.Provider
       value={{
-        user,
+        deviceId,
         profile,
         isAuthenticated,
         isLoading,
         needsOnboarding,
-        phone,
-        sendOtp,
-        verifyOtp,
+        login,
         completeOnboarding,
         updateProfile,
         logout,

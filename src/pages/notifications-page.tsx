@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Bell01, Trophy01, Wallet01, User01, CheckCircle, XCircle, AnnotationDots } from "@untitledui/icons";
 import { AppLayout } from "@/components/application/app-layout/app-layout";
+import { useAuth } from "@/providers/auth-provider";
 import {
   fetchNotifications,
   markNotificationAsRead,
@@ -42,6 +43,7 @@ function formatTimeAgo(dateStr: string): string {
 
 function NotificationPage() {
   const navigate = useNavigate();
+  const { deviceId } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -64,7 +66,7 @@ function NotificationPage() {
   }
 
   async function handleMarkAllAsRead() {
-    await markAllNotificationsAsRead();
+    await markAllNotificationsAsRead(deviceId);
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
   }
 

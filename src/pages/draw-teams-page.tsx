@@ -23,6 +23,7 @@ import {
   type Pelada,
   type Participant,
 } from "@/lib/peladas";
+import { supabase } from "@/lib/supabase";
 
 const POSITION_COLORS: Record<string, string> = {
   Atacante: "bg-secondary text-secondary",
@@ -163,6 +164,8 @@ function DrawTeamsPage() {
   const [isDrawn, setIsDrawn] = useState(mode === "manual");
 
   const [teamAssignments, setTeamAssignments] = useState<TeamAssignment>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const currentPeladaId = peladaId ?? "";
 
@@ -201,6 +204,33 @@ function DrawTeamsPage() {
       ...prev,
       [playerId]: team,
     }));
+  };
+
+  const handleConfirmTeams = async () => {
+    if (!currentPeladaId) return;
+    setIsSaving(true);
+    setSaveSuccess(false);
+
+    const updates = Object.entries(teamAssignments).map(([playerId, team]) => ({
+      id: playerId,
+      team: team === "bench" ? null : team,
+    }));
+
+    const { error } = await supabase
+      .from("participants")
+      .upsert(updates, { onConflict: "id" });
+
+    setIsSaving(false);
+
+    if (error) {
+      console.error("Erro ao salvar times:", error);
+      return;
+    }
+
+    setSaveSuccess(true);
+    setTimeout(() => {
+      navigate(`/match-detail/${currentPeladaId}`);
+    }, 1500);
   };
 
   const handleDraw = () => {
@@ -563,10 +593,29 @@ function DrawTeamsPage() {
           <section className="mb-8">
             <button
               type="button"
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-solid px-6 py-4 font-display text-sm font-bold uppercase tracking-wider text-primary_on-brand shadow-md shadow-brand-solid/20 transition-all active:scale-95 hover:bg-brand-solid_hover"
+              onClick={handleConfirmTeams}
+              disabled={isSaving}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-solid px-6 py-4 font-display text-sm font-bold uppercase tracking-wider text-primary_on-brand shadow-md shadow-brand-solid/20 transition-all active:scale-95 hover:bg-brand-solid_hover disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <CheckCircle className="size-5" style={{ fill: "currentColor" }} />
-              Confirmar Times
+              {isSaving ? (
+                <>
+                  <svg className="size-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Salvando...
+                </>
+              ) : saveSuccess ? (
+                <>
+                  <CheckCircle className="size-5" style={{ fill: "currentColor" }} />
+                  Times Salvos!
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="size-5" style={{ fill: "currentColor" }} />
+                  Confirmar Times
+                </>
+              )}
             </button>
           </section>
         )}

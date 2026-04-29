@@ -10,12 +10,12 @@ import {
   type MatchStatus,
 } from "@/components/application/match-card/match-card";
 import { useAuth } from "@/providers/auth-provider";
-import { supabase } from "@/lib/supabase";
 import {
   getUserPeladas,
   getConfirmedParticipants,
   formatDate,
   formatTime,
+  closePastPeladasAndGenerateRecurring,
   type Pelada,
   type Participant,
 } from "@/lib/peladas";
@@ -43,15 +43,14 @@ function MatchesPage() {
   const [inviteCode, setInviteCode] = useState("");
 
   const loadPeladas = useCallback(async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session?.user) {
+    if (!profile) {
       setIsLoading(false);
       return;
     }
 
-    const allPeladas = await getUserPeladas(session.user.id);
+    await closePastPeladasAndGenerateRecurring(profile.id);
+
+    const allPeladas = await getUserPeladas(profile.id);
     const peladasWithCounts = allPeladas.map((p) => ({
       ...p,
       confirmed_count: p.confirmed_count ?? 0,
@@ -76,7 +75,7 @@ function MatchesPage() {
     );
     setParticipantsMap(partsMap);
     setIsLoading(false);
-  }, []);
+  }, [profile]);
 
   useEffect(() => {
     loadPeladas();
@@ -107,8 +106,8 @@ function MatchesPage() {
       return da.getTime() - db.getTime();
     });
 
-  const featured = upcomingPeladas[0];
-  const restUpcoming = upcomingPeladas.slice(1);
+  const featured = upcomingPeladas.find((p) => !p.parent_pelada_id) ?? upcomingPeladas[0];
+  const restUpcoming = upcomingPeladas.filter((p) => p.id !== featured?.id);
 
   const getMatchStatus = (
     pelada: Pelada & { confirmed_count: number },

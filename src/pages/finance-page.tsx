@@ -7,6 +7,8 @@ import {
   Repeat01,
   Calendar,
   CheckCircle,
+  QrCode01,
+  Copy01,
 } from "@untitledui/icons";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
@@ -38,7 +40,7 @@ import {
 function FinancePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { deviceId } = useAuth();
   const [adminPeladas, setAdminPeladas] = useState<Pelada[]>([]);
   const [selectedPeladaId, setSelectedPeladaId] = useState<string | null>(
     searchParams.get("pelada") ?? null,
@@ -53,20 +55,21 @@ function FinancePage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "paid" | "pending">("all");
+  const [showPixModal, setShowPixModal] = useState(false);
 
   const currentMonth = getCurrentMonth();
 
   const selectedPelada = adminPeladas.find((p) => p.id === selectedPeladaId);
 
   const loadAdminPeladas = useCallback(async () => {
-    if (!user) return;
-    const peladas = await getAdminPeladas(user.id);
+    if (!deviceId) return;
+    const peladas = await getAdminPeladas(deviceId);
     setAdminPeladas(peladas);
     if (peladas.length > 0 && !selectedPeladaId) {
       setSelectedPeladaId(peladas[0].id);
     }
     setIsLoading(false);
-  }, [user, selectedPeladaId]);
+  }, [deviceId, selectedPeladaId]);
 
   const loadParticipants = useCallback(async () => {
     if (!selectedPeladaId) {
@@ -275,6 +278,15 @@ function FinancePage() {
                 <p className="mt-2 text-center font-display text-xs font-bold text-quaternary">
                   {progressPct}% arrecadado
                 </p>
+
+                <button
+                  type="button"
+                  onClick={() => setShowPixModal(true)}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-brand-solid/30 py-2.5 font-display text-xs font-bold text-brand-secondary transition-colors hover:bg-brand-solid/10"
+                >
+                  <QrCode01 className="size-4" />
+                  Compartilhar QR Code PIX
+                </button>
               </div>
             </section>
 
@@ -347,6 +359,14 @@ function FinancePage() {
           </>
         )}
       </main>
+
+      {showPixModal && selectedPelada && (
+        <PixModal
+          peladaName={selectedPelada.name}
+          price={selectedPelada.price ?? 0}
+          onClose={() => setShowPixModal(false)}
+        />
+      )}
     </AppLayout>
   );
 }
@@ -601,6 +621,120 @@ function ParticipantRow({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PixModal({
+  peladaName,
+  price,
+  onClose,
+}: {
+  peladaName: string;
+  price: number;
+  onClose: () => void;
+}) {
+  const [pixKey, setPixKey] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const pixPayload = pixKey
+    ? `PIX - ${peladaName}\nValor: ${formatCurrency(price)}\nChave: ${pixKey}`
+    : "";
+
+  const handleCopy = async () => {
+    if (!pixKey) return;
+    try {
+      await navigator.clipboard.writeText(pixKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = pixKey;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-t-2xl bg-primary p-6 pb-24 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-display text-lg font-bold text-primary">
+            QR Code PIX
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-1 text-fg-quaternary transition-colors hover:bg-secondary"
+          >
+            <XClose className="size-5" />
+          </button>
+        </div>
+
+        <div className="mb-4 rounded-xl bg-secondary p-4">
+          <p className="mb-1 font-display text-[10px] font-bold uppercase text-quaternary">
+            Valor
+          </p>
+          <p className="font-display text-xl font-bold text-primary">
+            {formatCurrency(price)}
+          </p>
+        </div>
+
+        <div className="mb-4">
+          <label className="mb-1 block text-xs font-bold uppercase text-quaternary">
+            Chave PIX (CPF, email, telefone ou aleatória)
+          </label>
+          <input
+            type="text"
+            value={pixKey}
+            onChange={(e) => setPixKey(e.target.value)}
+            placeholder="Sua chave PIX"
+            className="w-full rounded-xl border border-primary bg-primary px-4 py-3 text-sm text-primary outline-none focus:ring-2 focus:ring-brand"
+          />
+        </div>
+
+        {pixKey && (
+          <div className="mb-4 rounded-xl bg-brand-solid/5 p-4">
+            <p className="mb-2 font-display text-xs font-bold text-brand-secondary">
+              Mensagem para compartilhar:
+            </p>
+            <p className="whitespace-pre-wrap text-sm text-secondary">
+              {pixPayload}
+            </p>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={handleCopy}
+          disabled={!pixKey}
+          className={cx(
+            "w-full rounded-xl py-3 font-display text-sm font-bold uppercase transition-all",
+            copied
+              ? "bg-success-primary text-white"
+              : "bg-brand-solid text-primary_on-brand hover:bg-brand-solid_hover disabled:cursor-not-allowed disabled:opacity-50",
+          )}
+        >
+          <span className="flex items-center justify-center gap-2">
+            <Copy01 className="size-4" />
+            {copied ? "Chave copiada!" : "Copiar Chave PIX"}
+          </span>
+        </button>
+
+        <p className="mt-3 text-center text-xs text-quaternary">
+          Compartilhe sua chave PIX com os jogadores para receber pagamentos
+        </p>
+      </div>
     </div>
   );
 }

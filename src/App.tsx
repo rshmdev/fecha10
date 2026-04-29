@@ -10,6 +10,9 @@ import DrawTeamsPage from "@/pages/draw-teams-page";
 import JoinPage from "@/pages/join-page";
 import NotificationsPage from "@/pages/notifications-page";
 import ProfilePage from "@/pages/profile-page";
+import MyPaymentsPage from "@/pages/my-payments-page";
+import TermsPage from "@/pages/terms-page";
+import MatchResultsPage from "@/pages/match-results-page";
 import { OnboardingModal } from "@/components/application/onboarding-modal/onboarding-modal";
 import { useNativePlugins, useDeepLinks } from "@/hooks/use-native-plugins";
 
@@ -127,6 +130,23 @@ function AppRoutes() {
           element={
             <AuthenticatedRoute>
               <NotificationsPage />
+            </AuthenticatedRoute>
+          }
+        />
+        <Route
+          path="/my-payments"
+          element={
+            <AuthenticatedRoute>
+              <MyPaymentsPage />
+            </AuthenticatedRoute>
+          }
+        />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route
+          path="/match-results/:peladaId"
+          element={
+            <AuthenticatedRoute>
+              <MatchResultsPage />
             </AuthenticatedRoute>
           }
         />
