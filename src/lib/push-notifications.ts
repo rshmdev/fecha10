@@ -5,7 +5,7 @@ export async function saveFcmToken(userId: string, fcmToken: string) {
     .from("user_devices")
     .upsert(
       { user_id: userId, fcm_token: fcmToken, updated_at: new Date().toISOString() },
-      { onConflict: "fcm_token" }
+      { onConflict: "user_id_fcm_token_key" }
     );
 
   if (error) {
